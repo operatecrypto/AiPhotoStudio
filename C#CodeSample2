@@ -1,0 +1,106 @@
+using Google.Cloud.Storage.V1;
+using Google.Cloud.Vision.V1;
+using System;
+using System.Data.SqlClient;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace WeddingPhotoProcessor
+{
+    public class FaceProcessor
+    {
+        private const string BucketName = "your-gcs-bucket-name";
+        private const string ProjectId = "your-gcp-project-id";
+        private const string SqlConnectionString = "Server=your-sql-server;Database=weddingdb;User Id=your_user;Password=your_password;";
+
+        /// <summary>
+        /// Main function to process an uploaded reference photo
+        /// </summary>
+        public async Task ProcessReferencePhotoAsync(string filePath, string userId)
+        {
+            try
+            {
+                Console.WriteLine("Uploading photo to Google Cloud Storage...");
+                string gcsUri = await UploadToGcsAsync(filePath);
+
+                Console.WriteLine("Detecting faces using Google Vision API...");
+                bool faceDetected = await DetectFaceAsync(gcsUri);
+                if (!faceDetected)
+                {
+                    Console.WriteLine("No face detected in the reference photo. Please upload a clearer image.");
+                    return;
+                }
+
+                Console.WriteLine("Generating facial embedding (mock)...");
+                var embedding = GenerateMockEmbedding();
+
+                Console.WriteLine("Saving embedding to SQL Server...");
+                SaveEmbeddingToSql(userId, embedding);
+
+                Console.WriteLine("Processing complete.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Uploads a file to Google Cloud Storage and returns the GCS URI
+        /// </summary>
+        private async Task<string> UploadToGcsAsync(string filePath)
+        {
+            var storageClient = await StorageClient.CreateAsync();
+            var objectName = Path.GetFileName(filePath);
+
+            using var fileStream = File.OpenRead(filePath);
+            await storageClient.UploadObjectAsync(BucketName, objectName, null, fileStream);
+
+            return $"gs://{BucketName}/{objectName}";
+        }
+
+        /// <summary>
+        /// Uses Google Vision API to detect whether a face is present in the image
+        /// </summary>
+        private async Task<bool> DetectFaceAsync(string gcsUri)
+        {
+            var client = await ImageAnnotatorClient.CreateAsync();
+            var image = Image.FromUri(gcsUri);
+            var response = await client.DetectFacesAsync(image);
+            return response.Any();
+        }
+
+        /// <summary>
+        /// Mock function that returns a 128-dimensional facial embedding vector
+        /// </summary>
+        private float[] GenerateMockEmbedding()
+        {
+            var rand = new Random();
+            return Enumerable.Range(0, 128).Select(_ => (float)Math.Round(rand.NextDouble(), 6)).ToArray();
+        }
+
+        /// <summary>
+        /// Saves the embedding vector to SQL Server database
+        /// </summary>
+        private void SaveEmbeddingToSql(string userId, float[] embedding)
+        {
+            string embeddingStr = string.Join(",", embedding);
+
+            using var conn = new SqlConnection(SqlConnectionString);
+            conn.Open();
+
+            string query = "INSERT INTO FaceEmbeddings (UserId, EmbeddingVector, CreatedAt) VALUES (@uid, @embed, @ts)";
+            using var cmd = new SqlCommand(query, conn);
+
+            cmd.Parameters.AddWithValue("@uid", userId);
+            cmd.Parameters.AddWithValue("@embed", embeddingStr);
+            cmd.Parameters.AddWithValue("@ts", DateTime.UtcNow);
+
+            cmd.ExecuteNonQuery();
+        }
+    }
+}
+
+// Sample usage:
+// await new WeddingPhotoProcessor.FaceProcessor().ProcessReferencePhotoAsync("C:\\Users\\Admin\\Pictures\\john.jpg", "user123");
