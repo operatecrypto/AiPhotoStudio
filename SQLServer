@@ -1,0 +1,82 @@
+Here is the SQL Server schema and stored procedure code you'll need to support the C# facial recognition pipeline.
+
+---
+
+## 🗃️ **SQL Server Table Definitions**
+
+```sql
+-- Table to store face embeddings
+CREATE TABLE FaceEmbeddings (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    UserId NVARCHAR(100) NOT NULL,
+    EmbeddingVector NVARCHAR(MAX) NOT NULL, -- Store as comma-separated float values
+    CreatedAt DATETIME NOT NULL DEFAULT GETUTCDATE()
+);
+
+-- Table to store photos and metadata
+CREATE TABLE PhotoUploads (
+    PhotoId INT IDENTITY(1,1) PRIMARY KEY,
+    UserId NVARCHAR(100) NOT NULL,
+    FileName NVARCHAR(255),
+    GcsUri NVARCHAR(1024),
+    UploadTime DATETIME NOT NULL DEFAULT GETUTCDATE()
+);
+
+-- Table to store detected face matches in event photos
+CREATE TABLE FaceMatches (
+    MatchId INT IDENTITY(1,1) PRIMARY KEY,
+    EventPhotoId INT,
+    MatchedUserId NVARCHAR(100),
+    ConfidenceScore FLOAT,
+    MatchedAt DATETIME NOT NULL DEFAULT GETUTCDATE(),
+
+    FOREIGN KEY (EventPhotoId) REFERENCES PhotoUploads(PhotoId)
+);
+```
+
+---
+
+## ⚙️ **Stored Procedure to Insert Face Embedding**
+
+```sql
+CREATE PROCEDURE InsertFaceEmbedding
+    @UserId NVARCHAR(100),
+    @EmbeddingVector NVARCHAR(MAX)
+AS
+BEGIN
+    INSERT INTO FaceEmbeddings (UserId, EmbeddingVector, CreatedAt)
+    VALUES (@UserId, @EmbeddingVector, GETUTCDATE());
+END
+```
+
+---
+
+## ⚙️ **Stored Procedure to Record Match Results**
+
+```sql
+CREATE PROCEDURE RecordFaceMatch
+    @EventPhotoId INT,
+    @MatchedUserId NVARCHAR(100),
+    @ConfidenceScore FLOAT
+AS
+BEGIN
+    INSERT INTO FaceMatches (EventPhotoId, MatchedUserId, ConfidenceScore, MatchedAt)
+    VALUES (@EventPhotoId, @MatchedUserId, @ConfidenceScore, GETUTCDATE());
+END
+```
+
+---
+
+## 🧪 Example Query to Retrieve All Photos for a User
+
+```sql
+SELECT p.PhotoId, p.FileName, p.GcsUri, m.ConfidenceScore
+FROM FaceMatches m
+JOIN PhotoUploads p ON m.EventPhotoId = p.PhotoId
+WHERE m.MatchedUserId = 'user123'
+ORDER BY m.ConfidenceScore DESC;
+```
+
+---
+
+Let me know if you'd like to include vector similarity search directly in SQL Server or need indexing suggestions for performance.
