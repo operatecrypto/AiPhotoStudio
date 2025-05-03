@@ -1,0 +1,78 @@
+
+
+### 🧠 **Module 1: Facial Recognition of Reference Photos**
+
+| Task                       | Tool/Service                                                        | Notes                                                                                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Face detection & embedding | **Google Cloud Vision API** or **Google Vertex AI (Custom Vision)** | Cloud Vision can detect faces but does **not provide embeddings**. You'll need a **custom model hosted on Vertex AI** or an open-source model hosted on GCP (e.g., TensorFlow\.js model in Node.js or C#-wrapped model). |
+| Processing uploads         | **Cloud Functions** or **App Engine**                               | Trigger processing on photo upload.                                                                                                                                                                                      |
+| Upload handling            | **Cloud Storage**                                                   | Store reference photos here. Integrate it with Cloud Functions or your backend for further processing.                                                                                                                   |
+
+**Preferred Strategy:**
+
+* Use **Google Cloud Storage** to store reference photos.
+* Write a **C# or Node.js backend** that:
+
+  * Calls **Google Vision API** for face detection (to crop faces).
+  * Generates embeddings using a **local model** (like `face-api.js` in Node or a .NET wrapper around ONNX/TF).
+  * Stores embeddings in a vector DB (see Module 2).
+
+---
+
+### 📦 **Module 2: Embedding Storage in Vector DB**
+
+GCP does **not have a native vector database** yet (as of 2024), so you have two options:
+
+| Option                                                     | Description                                                                            |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Self-host FAISS** (via Compute Engine)                   | High-performance, open-source vector search. Use with Node.js/C#.                      |
+| **Use Weaviate or Pinecone** (hosted on GCP or externally) | Scalable managed service; integrates via API. Both support metadata and hybrid search. |
+| **BigQuery Vector Search (preview)**                       | If available in your region, it supports approximate nearest neighbor search.          |
+
+---
+
+### 🔍 **Module 3: Scanning Event Photos & Mapping Users**
+
+| Task                    | Tool/Service                          |
+| ----------------------- | ------------------------------------- |
+| Upload event photos     | Cloud Storage                         |
+| Trigger processing      | Cloud Functions (triggered on upload) |
+| Face detection in photo | Vision API                            |
+| Embedding generation    | Your model in Node.js/C#              |
+| Vector search           | Via FAISS or managed DB               |
+| Store result            | SQL Server (on GCP or external)       |
+
+**Workflow:**
+
+1. User uploads photo → stored in **Cloud Storage**.
+2. A **Cloud Function** triggers:
+
+   * Detect faces using **Vision API**.
+   * Generate embeddings (locally or via hosted model).
+   * Search embeddings in vector DB.
+   * Store matched `photo_id`, `user_id`, `confidence_score` in **SQL Server**.
+
+---
+
+### 🛠 Recommended GCP Setup
+
+| Component          | GCP Service                                            | Notes                                                    |
+| ------------------ | ------------------------------------------------------ | -------------------------------------------------------- |
+| Object storage     | **Cloud Storage**                                      | Store raw and processed images.                          |
+| Serverless compute | **Cloud Functions** or **Cloud Run**                   | Event-driven backend or API microservices.               |
+| Facial API         | **Vision API** (limited) or **Vertex AI Custom Model** | Vision API is basic; for embeddings, use custom hosting. |
+| Vector search      | **FAISS on Compute Engine** or **Pinecone/Weaviate**   | GCP-native vector search is limited.                     |
+| Database           | **Cloud SQL for SQL Server**                           | Fully managed SQL Server instance.                       |
+
+---
+
+### 🔐 Security + Compliance Tips
+
+* Use **IAM roles** to control access to Cloud Storage buckets.
+* Enable **Cloud Audit Logs**.
+* Secure photo uploads with signed URLs.
+* Add **user consent and privacy disclaimers** if storing face data (GDPR/CCPA compliant).
+
+---
+
+Would you like a sample architecture diagram or a boilerplate C#/Node.js code snippet to start with?
