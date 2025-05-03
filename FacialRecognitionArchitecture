@@ -1,0 +1,73 @@
+
+
+### 📷 **Wedding Web Studio Facial Recognition Architecture**
+
+**1. Attendee Reference Photo Upload**
+
+* **Frontend Application**: Built with JavaScript (Node.js), allowing attendees to upload two reference photos.
+* **Cloud Storage**: Photos are stored in **Google Cloud Storage** buckets.
+
+**2. Photo Processing and Embedding Generation**
+
+* **Cloud Functions**: Triggered upon photo upload to Cloud Storage.
+* **Face Detection**: Utilizes **Google Cloud Vision API** to detect faces in the uploaded images.
+* **Embedding Generation**: Since Cloud Vision API doesn't provide facial embeddings, a custom model (e.g., using **TensorFlow\.js** or **ONNX** models) is deployed on **Cloud Run** or **App Engine** to generate embeddings.
+
+**3. Embedding Storage**
+
+* **Vector Database**: Embeddings are stored in a vector database. Options include:
+
+  * **FAISS**: Hosted on **Compute Engine**.
+  * **Weaviate** or **Pinecone**: Managed services that can be integrated with GCP.
+
+**4. Event Photo Upload and Processing**
+
+* **Frontend Application**: Allows photographers or attendees to upload event photos.
+* **Cloud Storage**: Event photos are stored in a separate bucket.
+* **Cloud Functions**: Triggered upon event photo upload.
+* **Face Detection and Embedding**: Similar to reference photos, faces are detected using Cloud Vision API, and embeddings are generated using the custom model.([PetaPixel][1])
+
+**5. Attendee Matching**
+
+* **Vector Search**: Generated embeddings from event photos are compared against the stored reference embeddings in the vector database to find matches.
+* **Matching Logic**: Implemented in **Cloud Functions** or **Cloud Run** services using your preferred language (C# or Node.js).
+
+**6. Data Storage and Access**
+
+* **SQL Server**: Match results, including photo IDs, user IDs, and confidence scores, are stored in **Cloud SQL for SQL Server**.
+* **Backend Services**: Developed in C# or Node.js to handle data retrieval, user interfaces, and additional business logic.
+
+**7. User Interface**
+
+* **Personalized Websites**: Each attendee has a personalized website where they can view photos they're tagged in.
+* **Authentication and Access Control**: Ensures attendees can only access their photos.
+
+---
+
+### 🛡️ **Security and Compliance**
+
+* **IAM Roles**: Define precise access controls for Cloud Storage buckets and other resources.
+* **Data Encryption**: Ensure all data at rest and in transit is encrypted.
+* **User Consent**: Implement mechanisms to obtain and manage user consent for facial recognition processing.
+* **Audit Logging**: Enable audit logs to monitor access and changes to resources.([Amazon Web Services, Inc.][2])
+
+---
+
+### 🗂️ **Workflow Summary**
+
+1. **Attendee uploads reference photos** → Stored in Cloud Storage.
+2. **Cloud Function triggers** → Detects face and generates embedding.
+3. **Embedding stored** → Saved in vector database with user metadata.
+4. **Event photos uploaded** → Stored in Cloud Storage.
+5. **Cloud Function triggers** → Detects faces and generates embeddings.
+6. **Embeddings compared** → Matches found using vector search.
+7. **Results stored** → Match data saved in SQL Server.
+8. **User accesses personalized site** → Views photos they're tagged in.([PetaPixel][1], [Medium][3])
+
+---
+
+This architecture ensures scalability, efficiency, and compliance with data protection standards. If you need further details on any component or implementation guidance, feel free to ask!
+
+[1]: https://petapixel.com/2024/08/16/facial-recognition-tech-could-transform-event-photography/?utm_source=chatgpt.com "Facial Recognition Tech Could Transform Event Photography"
+[2]: https://aws.amazon.com/rekognition/faqs/?utm_source=chatgpt.com "Amazon Rekognition – frequently asked questions - AWS"
+[3]: https://medium.com/google-cloud/face-detection-and-processing-in-300-lines-of-code-38dc51a115d4?utm_source=chatgpt.com "Face detection and processing in 300 lines of code | Google Cloud"
