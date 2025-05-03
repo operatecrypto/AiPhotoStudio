@@ -1,0 +1,129 @@
+Below is a simplified **C# code sample** that demonstrates how you could:
+
+1. Upload a reference photo to **Google Cloud Storage**
+2. Use **Google Cloud Vision API** to detect faces
+3. Generate and save **mock embeddings** (since Vision API doesn't do this directly)
+4. Store the result in **SQL Server**
+
+> 💡 **Note:** Actual embedding generation requires a custom model. Here we mock it for demonstration.
+
+---
+
+### ✅ **Pre-requisites**
+
+* NuGet packages:
+
+  * `Google.Cloud.Storage.V1`
+  * `Google.Cloud.Vision.V1`
+  * `System.Data.SqlClient` or `Microsoft.Data.SqlClient`
+
+---
+
+### 📄 **C# Sample Code**
+
+```csharp
+using Google.Cloud.Storage.V1;
+using Google.Cloud.Vision.V1;
+using System;
+using System.Data.SqlClient;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+
+class FaceProcessor
+{
+    private const string BucketName = "your-gcs-bucket-name";
+    private const string ProjectId = "your-gcp-project-id";
+    private const string SqlConnectionString = "Server=your-sql-server;Database=weddingdb;User Id=...;Password=...;";
+
+    public async Task ProcessReferencePhotoAsync(string filePath, string userId)
+    {
+        // 1. Upload photo to Google Cloud Storage
+        string gcsUri = await UploadToGcsAsync(filePath);
+
+        // 2. Detect face using Cloud Vision API
+        var faceDetected = await DetectFaceAsync(gcsUri);
+        if (!faceDetected)
+        {
+            Console.WriteLine("No face detected. Skipping.");
+            return;
+        }
+
+        // 3. Generate mock embedding (replace with real model inference)
+        var embedding = GenerateMockEmbedding();
+
+        // 4. Save embedding to SQL Server
+        SaveEmbeddingToSql(userId, embedding);
+    }
+
+    private async Task<string> UploadToGcsAsync(string filePath)
+    {
+        var storageClient = await StorageClient.CreateAsync();
+        using var fileStream = File.OpenRead(filePath);
+        var objectName = Path.GetFileName(filePath);
+
+        await storageClient.UploadObjectAsync(BucketName, objectName, null, fileStream);
+        return $"gs://{BucketName}/{objectName}";
+    }
+
+    private async Task<bool> DetectFaceAsync(string gcsUri)
+    {
+        var client = await ImageAnnotatorClient.CreateAsync();
+        var image = Image.FromUri(gcsUri);
+        var response = await client.DetectFacesAsync(image);
+        return response.Any();
+    }
+
+    private float[] GenerateMockEmbedding()
+    {
+        var rand = new Random();
+        return Enumerable.Range(0, 128).Select(_ => (float)rand.NextDouble()).ToArray();
+    }
+
+    private void SaveEmbeddingToSql(string userId, float[] embedding)
+    {
+        string embeddingStr = string.Join(",", embedding);
+
+        using var conn = new SqlConnection(SqlConnectionString);
+        conn.Open();
+
+        var cmd = new SqlCommand("INSERT INTO FaceEmbeddings (UserId, EmbeddingVector, CreatedAt) VALUES (@uid, @embed, @ts)", conn);
+        cmd.Parameters.AddWithValue("@uid", userId);
+        cmd.Parameters.AddWithValue("@embed", embeddingStr);
+        cmd.Parameters.AddWithValue("@ts", DateTime.UtcNow);
+
+        cmd.ExecuteNonQuery();
+    }
+}
+```
+
+---
+
+### 🧾 **SQL Table Definition (Example)**
+
+```sql
+CREATE TABLE FaceEmbeddings (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    UserId NVARCHAR(100),
+    EmbeddingVector NVARCHAR(MAX),
+    CreatedAt DATETIME
+);
+```
+
+---
+
+### 🚀 How to Run
+
+```csharp
+await new FaceProcessor().ProcessReferencePhotoAsync("C:\\Photos\\john1.jpg", "user123");
+```
+
+---
+
+### 🧠 Notes
+
+* **Embedding logic**: Replace the mock generator with a real model hosted via TensorFlow/ONNX in .NET Core or REST API (e.g., from Vertex AI).
+* **Security**: Validate uploads, handle face count ≠ 1, log appropriately.
+* **Scalability**: Wrap in background queue (e.g., Azure Functions, GCP Cloud Tasks, etc.) for large uploads.
+
+Would you like a sample of how to connect to a custom embedding model (e.g., via REST API) instead?
