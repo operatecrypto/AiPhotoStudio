@@ -1,0 +1,119 @@
+ 
+
+1. Uploads images to GCS
+2. Detects faces via Vision API
+3. Generates a mock 128-dim face embedding
+4. Writes the embedding to SQL Server using the `mssql` package
+
+Feel free to adapt the mock embedding function to call your real model (e.g., via a REST endpoint or ONNX runtime). Let me know if you need the event-photo scanning pipeline or similarity search integration!
+
+
+// Wedding Photo Processor - JavaScript (Node.js)
+// Dependencies: @google-cloud/storage, @google-cloud/vision, mssql
+
+const { Storage } = require('@google-cloud/storage');
+const vision = require('@google-cloud/vision');
+const sql = require('mssql');
+const fs = require('fs');
+
+// Configuration
+const GC_BUCKET = 'your-gcs-bucket-name';
+const GC_PROJECT = 'your-gcp-project-id';
+const SQL_CONFIG = {
+  user: 'your_user',
+  password: 'your_password',
+  server: 'your-sql-server', // e.g., 'localhost\\SQLEXPRESS'
+  database: 'weddingdb',
+  options: {
+    encrypt: true,
+    trustServerCertificate: true
+  }
+};
+
+// Clients
+const storage = new Storage({ projectId: GC_PROJECT });
+const visionClient = new vision.ImageAnnotatorClient();
+
+/**
+ * Uploads file to Google Cloud Storage and returns the GCS URI
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function uploadToGcs(filePath) {
+  const bucket = storage.bucket(GC_BUCKET);
+  const filename = filePath.split('/').pop();
+  await bucket.upload(filePath, { destination: filename });
+  return `gs://${GC_BUCKET}/${filename}`;
+}
+
+/**
+ * Detects if at least one face is present in the image via Vision API
+ * @param {string} gcsUri
+ * @returns {Promise<boolean>}
+ */
+async function detectFace(gcsUri) {
+  const [result] = await visionClient.faceDetection(gcsUri);
+  const faces = result.faceAnnotations;
+  return faces && faces.length > 0;
+}
+
+/**
+ * Generates a mock 128-d facial embedding vector
+ * @returns {number[]}
+ */
+function generateMockEmbedding() {
+  return Array.from({ length: 128 }, () => parseFloat(Math.random().toFixed(6)));
+}
+
+/**
+ * Saves embedding vector to SQL Server
+ * @param {string} userId
+ * @param {number[]} embedding
+ */
+async function saveEmbeddingToSql(userId, embedding) {
+  const pool = await sql.connect(SQL_CONFIG);
+  const embeddingStr = embedding.join(',');
+  const query = `INSERT INTO FaceEmbeddings (UserId, EmbeddingVector, CreatedAt) VALUES (@uid, @embed, GETUTCDATE())`;
+
+  await pool.request()
+    .input('uid', sql.NVarChar(100), userId)
+    .input('embed', sql.NVarChar(sql.MAX), embeddingStr)
+    .query(query);
+
+  await pool.close();
+}
+
+/**
+ * Main pipeline: upload, detect, embed, save
+ * @param {string} filePath
+ * @param {string} userId
+ */
+async function processReferencePhoto(filePath, userId) {
+  try {
+    console.log('Uploading photo to GCS...');
+    const gcsUri = await uploadToGcs(filePath);
+
+    console.log('Detecting faces...');
+    const hasFace = await detectFace(gcsUri);
+    if (!hasFace) {
+      console.warn('No face detected, skipping.');
+      return;
+    }
+
+    console.log('Generating mock embedding...');
+    const embedding = generateMockEmbedding();
+
+    console.log('Saving embedding to SQL...');
+    await saveEmbeddingToSql(userId, embedding);
+
+    console.log('Processing complete.');
+  } catch (err) {
+    console.error('Error in processing:', err);
+  }
+}
+
+// Sample usage:
+// (async () => {
+//   await processReferencePhoto('/path/to/photo.jpg', 'user123');
+// })();
+
